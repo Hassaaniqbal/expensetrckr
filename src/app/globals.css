@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+button,
+[role="button"],
+a,
+select,
+summary,
+[type="button"],
+[type="submit"],
+[type="reset"] {
+  cursor: pointer;
+}
+
 @theme {
   --color-primary-50: #ecfdf5;
   --color-primary-100: #d1fae5;
