@@ -6,7 +6,9 @@ interface Loan {
   _id: string;
   date: string;
   amount: number;
-  lender: string;
+  type: "borrowed" | "lent";
+  person: string;
+  lender?: string; // backward compat
   notes: string;
   paid: boolean;
   paidDate?: string;
@@ -30,14 +32,22 @@ function toInputDate(dateStr: string): string {
   return new Date(dateStr).toISOString().split("T")[0];
 }
 
+function getPerson(loan: Loan): string {
+  return loan.person || loan.lender || "—";
+}
+
 export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
-  const unpaidTotal = loans.filter((l) => !l.paid).reduce((sum, l) => sum + l.amount, 0);
-  const paidTotal = loans.filter((l) => l.paid).reduce((sum, l) => sum + l.amount, 0);
+  const iOwe = loans.filter((l) => l.type === "borrowed" && !l.paid);
+  const owedToMe = loans.filter((l) => l.type === "lent" && !l.paid);
+  const settled = loans.filter((l) => l.paid);
+
+  const iOweTotal = iOwe.reduce((sum, l) => sum + l.amount, 0);
+  const owedToMeTotal = owedToMe.reduce((sum, l) => sum + l.amount, 0);
 
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  const [editLender, setEditLender] = useState("");
+  const [editPerson, setEditPerson] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState("");
@@ -48,7 +58,7 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
     setEditingLoan(loan);
     setEditDate(toInputDate(loan.date));
     setEditAmount(String(loan.amount));
-    setEditLender(loan.lender);
+    setEditPerson(getPerson(loan));
     setEditNotes(loan.notes);
     setEditError("");
   }
@@ -66,8 +76,8 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
       setEditError("Please enter a valid amount greater than 0");
       return;
     }
-    if (!editLender.trim()) {
-      setEditError("Please enter who gave the loan");
+    if (!editPerson.trim()) {
+      setEditError("Please enter the person's name");
       return;
     }
     setEditLoading(true);
@@ -75,12 +85,7 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
       const res = await fetch(`/api/loans/${editingLoan._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: editDate,
-          amount: parsedAmount,
-          lender: editLender,
-          notes: editNotes,
-        }),
+        body: JSON.stringify({ date: editDate, amount: parsedAmount, person: editPerson, notes: editNotes }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -128,8 +133,7 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
     );
   }
 
-  const unpaidLoans = loans.filter((l) => !l.paid);
-  const paidLoans = loans.filter((l) => l.paid);
+  const editPersonLabel = editingLoan?.type === "lent" ? "Lent To" : "Borrowed From";
 
   return (
     <>
@@ -167,11 +171,11 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Borrowed From</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{editPersonLabel}</label>
                 <input
                   type="text"
-                  value={editLender}
-                  onChange={(e) => setEditLender(e.target.value)}
+                  value={editPerson}
+                  onChange={(e) => setEditPerson(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
@@ -207,7 +211,7 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-6 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
               <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -221,15 +225,17 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
               </span>
             </h2>
           </div>
-          <div className="flex items-center gap-4 text-right">
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider">Outstanding</p>
-              <p className="text-xl font-bold text-orange-500">Rs. {unpaidTotal.toFixed(2)}</p>
-            </div>
-            {paidTotal > 0 && (
-              <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wider">Paid Back</p>
-                <p className="text-lg font-semibold text-slate-400">Rs. {paidTotal.toFixed(2)}</p>
+          <div className="flex items-center gap-4">
+            {iOweTotal > 0 && (
+              <div className="text-right">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">I Owe</p>
+                <p className="text-base sm:text-lg font-bold text-orange-500">Rs. {iOweTotal.toFixed(2)}</p>
+              </div>
+            )}
+            {owedToMeTotal > 0 && (
+              <div className="text-right">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Owed to Me</p>
+                <p className="text-base sm:text-lg font-bold text-blue-500">Rs. {owedToMeTotal.toFixed(2)}</p>
               </div>
             )}
           </div>
@@ -243,48 +249,57 @@ export default function LoanList({ loans, loading, onUpdate }: LoanListProps) {
               </svg>
             </div>
             <p className="text-slate-600 font-medium">No loans recorded</p>
-            <p className="text-sm text-slate-400 mt-1">Record a loan above to keep track of what you owe.</p>
+            <p className="text-sm text-slate-400 mt-1">Record a loan above to keep track.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {/* Unpaid loans */}
-            {unpaidLoans.length > 0 && (
+            {/* I Owe (borrowed, unpaid) */}
+            {iOwe.length > 0 && (
               <div>
-                {unpaidLoans.length < loans.length && (
-                  <p className="px-6 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50">
-                    Unpaid ({unpaidLoans.length})
+                <div className="flex items-center gap-2 px-4 sm:px-6 py-2 bg-orange-50">
+                  <svg className="w-3.5 h-3.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                  <p className="text-xs font-semibold text-orange-700 uppercase tracking-wider">
+                    I Owe ({iOwe.length})
                   </p>
-                )}
-                {unpaidLoans.map((loan) => (
-                  <LoanRow
-                    key={loan._id}
-                    loan={loan}
-                    onEdit={openEdit}
-                    onToggle={togglePaid}
-                    onDelete={handleDelete}
-                    togglingId={togglingId}
-                    deletingId={deletingId}
-                  />
+                </div>
+                {iOwe.map((loan) => (
+                  <LoanRow key={loan._id} loan={loan} onEdit={openEdit} onToggle={togglePaid} onDelete={handleDelete} togglingId={togglingId} deletingId={deletingId} />
                 ))}
               </div>
             )}
 
-            {/* Paid loans */}
-            {paidLoans.length > 0 && (
+            {/* Owed to Me (lent, unpaid) */}
+            {owedToMe.length > 0 && (
               <div>
-                <p className="px-6 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50">
-                  Paid Back ({paidLoans.length})
-                </p>
-                {paidLoans.map((loan) => (
-                  <LoanRow
-                    key={loan._id}
-                    loan={loan}
-                    onEdit={openEdit}
-                    onToggle={togglePaid}
-                    onDelete={handleDelete}
-                    togglingId={togglingId}
-                    deletingId={deletingId}
-                  />
+                <div className="flex items-center gap-2 px-4 sm:px-6 py-2 bg-blue-50">
+                  <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+                    Owed to Me ({owedToMe.length})
+                  </p>
+                </div>
+                {owedToMe.map((loan) => (
+                  <LoanRow key={loan._id} loan={loan} onEdit={openEdit} onToggle={togglePaid} onDelete={handleDelete} togglingId={togglingId} deletingId={deletingId} />
+                ))}
+              </div>
+            )}
+
+            {/* Settled */}
+            {settled.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 px-4 sm:px-6 py-2 bg-slate-50">
+                  <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Settled ({settled.length})
+                  </p>
+                </div>
+                {settled.map((loan) => (
+                  <LoanRow key={loan._id} loan={loan} onEdit={openEdit} onToggle={togglePaid} onDelete={handleDelete} togglingId={togglingId} deletingId={deletingId} />
                 ))}
               </div>
             )}
@@ -310,21 +325,16 @@ function LoanRow({
   togglingId: string | null;
   deletingId: string | null;
 }) {
-  function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
+  const isBorrowed = loan.type === "borrowed";
+  const person = loan.person || loan.lender || "—";
 
   return (
-    <div className={`flex items-center gap-4 px-6 py-4 transition-colors hover:bg-slate-50/50 ${loan.paid ? "opacity-60" : ""}`}>
+    <div className={`flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 transition-colors hover:bg-slate-50/50 ${loan.paid ? "opacity-55" : ""}`}>
       {/* Tick button */}
       <button
         onClick={() => onToggle(loan)}
         disabled={togglingId === loan._id}
-        title={loan.paid ? "Mark as unpaid" : "Mark as paid"}
+        title={loan.paid ? "Mark as unsettled" : "Mark as settled"}
         className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors disabled:opacity-50 ${
           loan.paid
             ? "bg-green-500 border-green-500 text-white"
@@ -340,20 +350,29 @@ function LoanRow({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className={`text-sm font-semibold ${loan.paid ? "line-through text-slate-400" : "text-slate-900"}`}>
             Rs. {loan.amount.toFixed(2)}
           </span>
-          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-            {loan.lender}
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+            isBorrowed ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"
+          }`}>
+            {isBorrowed ? "from" : "to"} {person}
           </span>
-          <span className="text-xs text-slate-400">{formatDate(loan.date)}</span>
-          {loan.paid && loan.paidDate && (
-            <span className="text-xs text-green-600">Paid on {formatDate(loan.paidDate)}</span>
+          {loan.paid && (
+            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+              isBorrowed ? "bg-orange-50 text-orange-400" : "bg-blue-50 text-blue-400"
+            }`}>
+              {isBorrowed ? "Borrowed" : "Lent"}
+            </span>
           )}
+          <span className="text-xs text-slate-400">{formatDate(loan.date)}</span>
         </div>
+        {loan.paid && loan.paidDate && (
+          <p className="text-xs text-green-600 mt-0.5">Settled on {formatDate(loan.paidDate)}</p>
+        )}
         {loan.notes && (
-          <p className="text-sm text-slate-500 mt-0.5 truncate">{loan.notes}</p>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{loan.notes}</p>
         )}
       </div>
 
@@ -362,7 +381,9 @@ function LoanRow({
         {!loan.paid && (
           <button
             onClick={() => onEdit(loan)}
-            className="p-1.5 text-slate-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+            className={`p-1.5 text-slate-400 rounded-lg transition-colors ${
+              isBorrowed ? "hover:text-orange-500 hover:bg-orange-50" : "hover:text-blue-500 hover:bg-blue-50"
+            }`}
             title="Edit"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

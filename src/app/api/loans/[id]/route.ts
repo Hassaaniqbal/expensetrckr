@@ -6,7 +6,7 @@ function getUserId(request: NextRequest): string | null {
   return request.headers.get("x-user-id");
 }
 
-// Full update (amount, lender, date, notes)
+// Full update (amount, person, date, notes)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -20,11 +20,11 @@ export async function PUT(
     const { id } = await params;
     await connectDB();
 
-    const { date, amount, lender, notes } = await request.json();
+    const { date, amount, person, notes } = await request.json();
 
-    if (!date || !amount || !lender) {
+    if (!date || !amount || !person) {
       return NextResponse.json(
-        { error: "Date, amount, and lender are required" },
+        { error: "Date, amount, and person are required" },
         { status: 400 }
       );
     }
@@ -38,7 +38,7 @@ export async function PUT(
 
     const loan = await Loan.findOneAndUpdate(
       { _id: id, userId },
-      { date: new Date(date), amount, lender: lender.trim(), notes: notes || "" },
+      { date: new Date(date), amount, person: person.trim(), notes: notes || "" },
       { new: true }
     );
 

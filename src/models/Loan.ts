@@ -4,7 +4,9 @@ export interface ILoan extends Document {
   userId: mongoose.Types.ObjectId;
   date: Date;
   amount: number;
-  lender: string;
+  type: "borrowed" | "lent";
+  person: string;
+  lender?: string; // kept for backward compat with old records
   notes: string;
   paid: boolean;
   paidDate?: Date;
@@ -16,7 +18,9 @@ const LoanSchema = new Schema<ILoan>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     date: { type: Date, required: true },
     amount: { type: Number, required: true, min: 0.01 },
-    lender: { type: String, required: true, trim: true },
+    type: { type: String, enum: ["borrowed", "lent"], required: true, default: "borrowed" },
+    person: { type: String, default: "" },
+    lender: { type: String, default: "" },
     notes: { type: String, default: "" },
     paid: { type: Boolean, default: false },
     paidDate: { type: Date },

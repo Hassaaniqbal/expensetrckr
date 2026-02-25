@@ -31,11 +31,11 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const { date, amount, lender, notes } = await request.json();
+    const { date, amount, type, person, notes } = await request.json();
 
-    if (!date || !amount || !lender) {
+    if (!date || !amount || !person) {
       return NextResponse.json(
-        { error: "Date, amount, and lender are required" },
+        { error: "Date, amount, and person are required" },
         { status: 400 }
       );
     }
@@ -47,11 +47,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!["borrowed", "lent"].includes(type)) {
+      return NextResponse.json({ error: "Invalid loan type" }, { status: 400 });
+    }
+
     const loan = await Loan.create({
       userId,
       date: new Date(date),
       amount,
-      lender: lender.trim(),
+      type: type || "borrowed",
+      person: person.trim(),
       notes: notes || "",
       paid: false,
     });

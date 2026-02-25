@@ -16,7 +16,7 @@ export default function ExpenseForm({ onExpenseAdded }: ExpenseFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setError("");
 
