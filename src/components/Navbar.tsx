@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Image from "next/image";
 
 interface NavbarProps {
   username: string;
@@ -22,10 +23,8 @@ export default function Navbar({ username }: NavbarProps) {
     <nav className="bg-primary-700 shadow-md">
       <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-            </svg>
+          <div className="w-9 h-9 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center">
+            <Image src="/logo.png" alt="Expense Tracker" width={36} height={36} className="object-contain" />
           </div>
           <h1 className="text-lg font-bold text-white">Expense Tracker</h1>
         </div>
